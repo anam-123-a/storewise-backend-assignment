@@ -137,19 +137,41 @@ def question7_route(db: Session = Depends(get_db)):
 
 # Question 8
 @app.get("/tasks/question8/")
-def question8_route(criteria: dict, sort_by: str, db: Session = Depends(get_db)):
-    
-    # Note: Only use a SQL query to solve this question
-    return None
+def question8_route(db: Session = Depends(get_db)):
+    from datetime import datetime
+    from sqlalchemy import and_, extract
+
+    start_date = datetime(2024, 8, 26)
+    end_date = datetime(2024, 9, 9)
+
+    tasks_filtered = db.query(Task).filter(
+        and_(
+            Task.created_at >= start_date,
+            Task.created_at <= end_date,
+            Task.status != "completed",
+            extract("weekday", Task.created_at) != 6  # Sunday = 6
+        )
+    ).all()
+
+    return tasks_filtered
 
 # Question 9
-@app.post("/tasks/question9/{worker_threads}")
-def question9_route(worker_threads: int, db: Session = Depends(get_db)):
-    tasks = db.query(Task).all()
-    return question9(tasks, worker_threads)
+import asyncio
 
+async def execute_task(task):
+    duration_sec = task.duration / 10  # demo purpose
+    print(f"Starting task {task.name}")
+    await asyncio.sleep(duration_sec)
+    print(f"Finished task {task.name}")
 
-# Default route
-@app.get("/")
-def default_route():
-    return {"message": "Welcome to the Storewise Backend Assignment!", "documentation": "Visit localhost:8000/docs"}
+async def worker(tasks, worker_threads):
+    semaphore = asyncio.Semaphore(worker_threads)
+
+    async def sem_task(task):
+        async with semaphore:
+            await execute_task(task)
+
+    await asyncio.gather(*(sem_task(task) for task in tasks))
+
+# Example usage in Python shell:
+# asyncio.run(worker(tasks, worker_threads=2))
